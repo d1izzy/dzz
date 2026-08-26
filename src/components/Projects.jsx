@@ -9,7 +9,9 @@ export default function Projects() {
       <AnimatedContent distance={40} duration={0.9} threshold={0.2}>
         <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-accent">Работы</p>
         <h2 className="headline mt-2">Живые страницы, не макеты</h2>
-        <p className="muted mt-3 max-w-md">Превью — тот же сайт, что в проде. Клик открывает оригинал.</p>
+        <p className="muted mt-3 max-w-md">
+          На компьютере — живое превью. На телефоне — кадр сайта. Клик открывает оригинал.
+        </p>
       </AnimatedContent>
 
       <div className="mx-auto mt-12 grid max-w-5xl grid-cols-1 items-stretch gap-5 md:grid-cols-2">

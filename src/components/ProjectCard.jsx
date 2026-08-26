@@ -1,8 +1,38 @@
 import GlareHover from './GlareHover'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import { IconArrow } from './icons'
 import LivePreview from './LivePreview'
 
+function PreviewChrome({ url, children, live }) {
+  let host = url
+  try {
+    host = new URL(url).host.replace(/^www\./, '')
+  } catch {
+    /* keep url */
+  }
+
+  return (
+    <div className="relative h-full overflow-hidden bg-[#0a0a0a]">
+      <div className="absolute inset-x-0 top-0 z-20 flex h-9 items-center gap-2 border-b border-white/10 bg-[#111] px-3">
+        <span className="h-2 w-2 rounded-full bg-[#ff5f57]" />
+        <span className="h-2 w-2 rounded-full bg-[#febc2e]" />
+        <span className="h-2 w-2 rounded-full bg-[#28c840]" />
+        <span className="ml-2 min-w-0 flex-1 truncate rounded-full bg-white/5 px-3 py-0.5 text-[10px] text-white/45">
+          {host}
+        </span>
+        <span className="flex items-center gap-1 text-[10px] uppercase tracking-[0.14em] text-white/50">
+          <span className={`h-1.5 w-1.5 rounded-full ${live ? 'bg-emerald-400' : 'bg-accent'}`} />
+          {live ? 'Live' : 'Preview'}
+        </span>
+      </div>
+      <div className="absolute inset-0 top-9">{children}</div>
+    </div>
+  )
+}
+
 export default function ProjectCard({ project }) {
+  const isDesktop = useMediaQuery('(min-width: 768px)')
+
   return (
     <article className="flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] shadow-card">
       <a
@@ -11,21 +41,31 @@ export default function ProjectCard({ project }) {
         rel="noopener noreferrer"
         className="relative block aspect-[16/10] w-full shrink-0 bg-black"
       >
-        <GlareHover
-          width="100%"
-          height="100%"
-          background="transparent"
-          borderColor="transparent"
-          borderRadius="0px"
-          glareColor="#ffffff"
-          glareOpacity={0.22}
-          glareSize={180}
-          className="!absolute !inset-0 !border-0"
-        >
-          <div className="absolute inset-0 h-full w-full overflow-hidden">
-            <LivePreview url={project.url} title={project.title} />
-          </div>
-        </GlareHover>
+        {isDesktop ? (
+          <GlareHover
+            width="100%"
+            height="100%"
+            background="transparent"
+            borderColor="transparent"
+            borderRadius="0px"
+            glareColor="#ffffff"
+            glareOpacity={0.22}
+            glareSize={180}
+            className="!absolute !inset-0 !border-0"
+          >
+            <div className="absolute inset-0 h-full w-full overflow-hidden">
+              <LivePreview url={project.url} title={project.title} />
+            </div>
+          </GlareHover>
+        ) : (
+          <PreviewChrome url={project.url} live={false}>
+            <img
+              src={project.cover}
+              alt=""
+              className="h-full w-full object-cover object-top"
+            />
+          </PreviewChrome>
+        )}
       </a>
 
       <div className="flex flex-1 flex-col p-4">

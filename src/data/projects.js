@@ -4,6 +4,7 @@ export const projects = [
     index: '01',
     title: 'Period',
     url: 'https://period-landing-two.vercel.app/',
+    cover: '/cases/period.jpg',
     lead: 'Бот и Mini App',
     description:
       'Календарь и расходы из одной фразы в Telegram. Завтра встреча, 500 ₽ на такси — одна запись, без таблиц и форм.',
@@ -18,6 +19,7 @@ export const projects = [
     index: '02',
     title: 'Светкадр',
     url: 'https://fotosite-seven.vercel.app/',
+    cover: '/cases/svetkadr.png',
     lead: 'Сайт фотоцентра',
     description:
       'Съёмка, печать и сувениры. Каталог, адрес, часы работы и заявка — всё на одной странице.',

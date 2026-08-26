@@ -123,6 +123,25 @@ export function IconArrow(props) {
   )
 }
 
+export function IconMenu(props) {
+  return (
+    <Svg {...props}>
+      <path d="M4 7h16" />
+      <path d="M4 12h16" />
+      <path d="M4 17h16" />
+    </Svg>
+  )
+}
+
+export function IconClose(props) {
+  return (
+    <Svg {...props}>
+      <path d="M6 6l12 12" />
+      <path d="M18 6L6 18" />
+    </Svg>
+  )
+}
+
 export function IconReact(props) {
   return (
     <Svg {...props}>

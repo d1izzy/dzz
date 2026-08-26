@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { site } from '../data/site'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import BlurText from './BlurText'
 import CountUp from './CountUp'
 import GradientText from './GradientText'
@@ -17,16 +18,19 @@ const stats = [
 
 export default function Hero() {
   const [motionOk, setMotionOk] = useState(false)
+  const isDesktop = useMediaQuery('(min-width: 1024px)')
 
   useEffect(() => {
     setMotionOk(!window.matchMedia('(prefers-reduced-motion: reduce)').matches)
   }, [])
 
+  const showFx = motionOk && isDesktop
+
   return (
     <section id="top" className="relative isolate min-h-[100svh] overflow-hidden bg-paper text-ink">
       <div className="hero-gold-wash pointer-events-none absolute inset-0" aria-hidden />
 
-      {motionOk ? (
+      {showFx ? (
         <>
           <div className="hero-canvas pointer-events-none absolute inset-0 opacity-80" aria-hidden>
             <Suspense fallback={null}>
@@ -76,13 +80,11 @@ export default function Hero() {
             </Suspense>
           </div>
         </>
-      ) : (
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,#c6b48a22,transparent_55%)]" aria-hidden />
-      )}
+      ) : null}
 
       <div className="hero-vignette pointer-events-none absolute inset-0" aria-hidden />
 
-      <div className="hero-read relative z-10 mx-auto flex min-h-[100svh] w-full max-w-6xl flex-col items-center justify-center gap-10 px-5 pb-16 pt-28 lg:flex-row lg:items-center lg:justify-between lg:gap-10">
+      <div className="hero-read relative z-10 mx-auto flex min-h-[100svh] w-full max-w-6xl flex-col items-center justify-center gap-10 px-5 pb-16 pt-24 lg:flex-row lg:items-center lg:justify-between lg:gap-10 lg:pt-28">
         <div className="hero-copy flex w-full flex-1 flex-col items-center text-center lg:items-start lg:text-left">
           <p className="mb-6 text-[11px] font-semibold uppercase tracking-[0.28em] text-ink/70">
             <ShinyText text="можно заказать" color="#c6b48a" shineColor="#e8dcc8" speed={2.4} />
@@ -119,25 +121,25 @@ export default function Hero() {
             Лендинг, магазин, бот в Telegram или мини-приложение. Собираем, запускаем, отдаём рабочим.
           </p>
 
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
-            <a href="#work" className="btn btn-ghost min-w-[13.75rem]">
+          <div className="mt-10 flex w-full max-w-sm flex-col items-stretch gap-3 sm:max-w-none sm:flex-row sm:flex-wrap sm:items-center sm:justify-center lg:justify-start">
+            <a href="#work" className="btn btn-ghost w-full sm:w-auto sm:min-w-[13.75rem]">
               Смотреть работы
             </a>
             <a
               href={site.telegramUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="btn btn-ghost min-w-[13.75rem]"
+              className="btn btn-ghost w-full sm:w-auto sm:min-w-[13.75rem]"
             >
               Telegram @{site.telegram}
             </a>
           </div>
 
-          <dl className="mt-16 flex gap-10 text-left">
+          <dl className="mt-14 flex gap-10 text-left sm:mt-16">
             {stats.map((item) => (
               <div key={item.label}>
                 <dt className="font-serif text-4xl sm:text-5xl">
-                  <CountUp to={item.to} duration={1.6} />
+                  <CountUp to={item.to} duration={1.4} />
                 </dt>
                 <dd className="mt-1 text-xs uppercase tracking-[0.16em] text-ink/55">{item.label}</dd>
               </div>
@@ -145,8 +147,8 @@ export default function Hero() {
           </dl>
         </div>
 
-        {motionOk ? (
-          <div className="hero-globe-widget" aria-hidden>
+        {showFx ? (
+          <div className="hero-globe-widget hidden lg:block" aria-hidden>
             <Suspense fallback={null}>
               <Globe
                 primaryColor="#c6b48a"
