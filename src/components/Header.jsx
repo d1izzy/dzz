@@ -61,12 +61,12 @@ function MobileHeader({ active }) {
   }, [open])
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 md:hidden">
-      <div className="flex items-center justify-between gap-3 px-4 py-3">
+    <header className={`fixed inset-x-0 top-0 z-[60] md:hidden ${open ? 'bottom-0 bg-[#080706]' : ''}`}>
+      <div className={`flex items-center justify-between gap-3 px-4 py-3 ${open ? 'bg-[#080706]' : ''}`}>
         <Logo />
         <button
           type="button"
-          className="grid h-11 w-11 place-items-center rounded-full border border-accent/25 bg-black/40 text-accent backdrop-blur-md"
+          className="grid h-11 w-11 place-items-center rounded-full border border-accent/25 bg-[#16130f] text-accent"
           aria-label={open ? 'Закрыть меню' : 'Открыть меню'}
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
@@ -76,7 +76,7 @@ function MobileHeader({ active }) {
       </div>
 
       {open ? (
-        <div className="fixed inset-x-0 bottom-0 top-[4.25rem] flex flex-col bg-[#080706]/98 px-5 pb-10 pt-6">
+        <div className="absolute inset-x-0 bottom-0 top-[4.25rem] bg-[#080706] px-5 pb-10 pt-6">
           <nav className="flex flex-col gap-1" aria-label="Разделы">
             {nav.map((item) => {
               const on = active === item.id
