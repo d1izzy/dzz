@@ -86,7 +86,7 @@ export default function Hero() {
 
       <div className="hero-read relative z-10 mx-auto flex min-h-[100svh] w-full max-w-6xl flex-col items-center justify-center gap-10 px-5 pb-16 pt-24 lg:flex-row lg:items-center lg:justify-between lg:gap-10 lg:pt-28">
         <div className="hero-copy flex w-full flex-1 flex-col items-center text-center lg:items-start lg:text-left">
-          <p className="mb-6 text-[11px] font-semibold uppercase tracking-[0.28em] text-ink/70">
+          <p className="hero-kicker mb-6">
             <ShinyText text="можно заказать" color="#c6b48a" shineColor="#e8dcc8" speed={2.4} />
           </p>
 
@@ -112,7 +112,7 @@ export default function Hero() {
           <GradientText
             colors={['#c6b48a', '#e8dcc8', '#c6b48a']}
             animationSpeed={6}
-            className="mt-5 !mx-0 text-sm font-medium uppercase tracking-[0.18em]"
+            className="hero-kicker mt-5 !mx-0"
           >
             под вашу задачу
           </GradientText>

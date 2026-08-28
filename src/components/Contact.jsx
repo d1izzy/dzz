@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { site } from '../data/site'
+import { href, site } from '../data/site'
 import AnimatedContent from './AnimatedContent'
 import SpotlightCard from './SpotlightCard'
 import { IconArrow, IconTelegram } from './icons'
@@ -120,6 +120,24 @@ export default function Contact() {
                     className="w-full resize-y rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm outline-none focus:border-accent"
                     placeholder="Что нужно, сроки, ссылки"
                   />
+                </label>
+                <label className="flex items-start gap-3 text-[13px] leading-relaxed text-white/45">
+                  <input
+                    type="checkbox"
+                    name="consent"
+                    required
+                    className="mt-1 h-4 w-4 shrink-0 accent-accent"
+                  />
+                  <span>
+                    Согласен с{' '}
+                    <a href={href('/privacy')} className="text-accent/90 underline decoration-accent/30 underline-offset-2 transition hover:text-accent">
+                      политикой конфиденциальности
+                    </a>
+                    {' '}и{' '}
+                    <a href={href('/terms')} className="text-accent/90 underline decoration-accent/30 underline-offset-2 transition hover:text-accent">
+                      условиями пользования
+                    </a>
+                  </span>
                 </label>
                 <button type="submit" className="btn btn-primary">
                   Отправить

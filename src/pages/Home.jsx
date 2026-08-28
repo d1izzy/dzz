@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import ClickSpark from '../components/ClickSpark'
 import Contact from '../components/Contact'
 import Footer from '../components/Footer'
@@ -16,6 +17,15 @@ const ticker = ['сайты', 'боты', 'Mini Apps', 'парсеры', 'API'].
 }))
 
 export default function Home() {
+  useEffect(() => {
+    const id = window.location.hash.replace('#', '')
+    if (!id) return undefined
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: 'auto', block: 'start' })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [])
+
   return (
     <ClickSpark sparkColor="#c6b48a" sparkSize={9} sparkRadius={18} sparkCount={10} duration={420}>
       <div className="noise-layer" aria-hidden>

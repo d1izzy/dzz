@@ -1,4 +1,4 @@
-import { nav, site } from '../data/site'
+import { href, legalLinks, nav, site } from '../data/site'
 import { services } from '../data/services'
 import Magnet from './Magnet'
 import { IconArrow, IconMark } from './icons'
@@ -34,7 +34,7 @@ export default function Footer() {
 
         <div className="grid gap-10 border-t border-accent/15 py-12 sm:grid-cols-2 lg:grid-cols-4 lg:gap-12">
           <div>
-            <a href="#top" className="inline-flex items-center gap-2.5">
+            <a href={href('/#top')} className="inline-flex items-center gap-2.5">
               <IconMark className="h-7 w-7 text-accent" />
               <span className="font-serif text-xl italic tracking-tight">
                 {site.brand}
@@ -50,7 +50,7 @@ export default function Footer() {
             <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-ink/40">Разделы</p>
             <nav className="flex flex-col gap-2.5" aria-label="Подвал">
               {nav.map((item) => (
-                <a key={item.id} href={item.href} className="text-sm text-ink/70 transition hover:text-accent">
+                <a key={item.id} href={href(item.href)} className="text-sm text-ink/70 transition hover:text-accent">
                   {item.label}
                 </a>
               ))}
@@ -62,7 +62,7 @@ export default function Footer() {
             <ul className="flex flex-col gap-2.5">
               {services.map((item) => (
                 <li key={item.index}>
-                  <a href="#services" className="text-sm text-ink/70 transition hover:text-accent">
+                  <a href={href('/#services')} className="text-sm text-ink/70 transition hover:text-accent">
                     {item.title}
                   </a>
                 </li>
@@ -94,13 +94,20 @@ export default function Footer() {
         <p className="footer-mark" aria-hidden>
           {site.brand}.
         </p>
-        <div className="relative z-[1] mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-5 sm:px-8">
+        <div className="relative z-[1] mx-auto flex w-full max-w-6xl flex-col gap-3 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-8">
           <p className="text-xs text-ink/40">
             © {new Date().getFullYear()} {site.brand}.
           </p>
-          <a href="#top" className="text-xs text-ink/50 transition hover:text-accent">
-            Наверх
-          </a>
+          <nav className="flex flex-wrap items-center gap-x-4 gap-y-2" aria-label="Документы">
+            {legalLinks.map((item) => (
+              <a key={item.href} href={href(item.href)} className="text-xs text-ink/50 transition hover:text-accent">
+                {item.label}
+              </a>
+            ))}
+            <a href="#top" className="text-xs text-ink/50 transition hover:text-accent">
+              Наверх
+            </a>
+          </nav>
         </div>
       </div>
     </footer>

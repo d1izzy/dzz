@@ -18,15 +18,26 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
 }
 
 body {
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+  width: 100%;
+  max-width: 100%;
   background:
     radial-gradient(1200px 640px at 50% -8%, #16130f 0%, transparent 58%),
     #080706;
   color: var(--ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  overflow-x: hidden;
+  max-width: 100%;
 }
 
 ::selection {
@@ -126,6 +137,21 @@ body {
   color: var(--accent);
 }
 
+.hero-kicker {
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-shadow: none;
+}
+
+@media (min-width: 640px) {
+  .hero-kicker {
+    font-size: 1rem;
+    letter-spacing: 0.18em;
+  }
+}
+
 .hero-title {
   display: flex;
   flex-wrap: wrap;
@@ -133,7 +159,7 @@ body {
   justify-content: center;
   column-gap: 0.28em;
   font-family: var(--font-serif);
-  font-size: clamp(2.4rem, 5.2vw, 4.6rem);
+  font-size: clamp(3.05rem, 12vw, 4.7rem);
   font-weight: 400;
   line-height: 1.05;
   letter-spacing: -0.04em;

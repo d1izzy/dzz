@@ -10,8 +10,27 @@ export const site = {
 }
 
 export const nav = [
-  { href: '#work', id: 'work', index: '01', label: 'Работы' },
-  { href: '#services', id: 'services', index: '02', label: 'Услуги' },
-  { href: '#stack', id: 'stack', index: '03', label: 'Стек' },
-  { href: '#contact', id: 'contact', index: '04', label: 'Связь' },
+  { href: '/#work', id: 'work', index: '01', label: 'Работы' },
+  { href: '/#services', id: 'services', index: '02', label: 'Услуги' },
+  { href: '/#stack', id: 'stack', index: '03', label: 'Стек' },
+  { href: '/#contact', id: 'contact', index: '04', label: 'Связь' },
 ]
+
+export const legalLinks = [
+  { href: '/privacy', label: 'Политика конфиденциальности' },
+  { href: '/terms', label: 'Условия пользования' },
+]
+
+const base = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
+
+export function href(path) {
+  if (!path || path.startsWith('http') || path.startsWith('#')) return path
+  if (!base) return path
+  return `${base}${path}`
+}
+
+export function currentPath() {
+  let path = window.location.pathname
+  if (base && path.startsWith(base)) path = path.slice(base.length)
+  return path.replace(/\/$/, '') || '/'
+}
