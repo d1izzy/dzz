@@ -96,20 +96,34 @@ const Particles = ({
   cameraDistance = 20,
   disableRotation = false,
   pixelRatio = 1,
+  active = true,
   className
 }) => {
   const containerRef = useRef(null);
   const mouseRef = useRef({ x: 0, y: 0 });
+  const activeRef = useRef(active);
+  const syncAnimationRef = useRef(() => {});
+  activeRef.current = active;
+
+  useEffect(() => {
+    syncAnimationRef.current();
+  }, [active]);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    const renderer = new Renderer({
-      dpr: pixelRatio,
-      depth: false,
-      alpha: true
-    });
+    let renderer;
+    try {
+      renderer = new Renderer({
+        dpr: pixelRatio,
+        depth: false,
+        alpha: true
+      });
+    } catch {
+      // The page remains usable when decorative WebGL effects are unavailable.
+      return undefined;
+    }
     const gl = renderer.gl;
     container.appendChild(gl.canvas);
     gl.clearColor(0, 0, 0, 0);
@@ -118,24 +132,20 @@ const Particles = ({
     camera.position.set(0, 0, cameraDistance);
 
     const resize = () => {
-      const width = container.clientWidth;
-      const height = container.clientHeight;
+      const width = Math.max(1, container.clientWidth);
+      const height = Math.max(1, container.clientHeight);
       renderer.setSize(width, height);
       camera.perspective({ aspect: gl.canvas.width / gl.canvas.height });
     };
-    window.addEventListener('resize', resize, false);
     resize();
 
     const handleMouseMove = e => {
+      if (!activeRef.current) return;
       const rect = container.getBoundingClientRect();
       const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       const y = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
       mouseRef.current = { x, y };
     };
-
-    if (moveParticlesOnHover) {
-      container.addEventListener('mousemove', handleMouseMove);
-    }
 
     const count = particleCount;
     const positions = new Float32Array(count * 3);
@@ -158,35 +168,47 @@ const Particles = ({
       colors.set(col, i * 3);
     }
 
-    const geometry = new Geometry(gl, {
-      position: { size: 3, data: positions },
-      random: { size: 4, data: randoms },
-      color: { size: 3, data: colors }
-    });
+    let geometry;
+    let program;
+    let particles;
+    try {
+      geometry = new Geometry(gl, {
+        position: { size: 3, data: positions },
+        random: { size: 4, data: randoms },
+        color: { size: 3, data: colors }
+      });
 
-    const program = new Program(gl, {
-      vertex,
-      fragment,
-      uniforms: {
-        uTime: { value: 0 },
-        uSpread: { value: particleSpread },
-        uBaseSize: { value: particleBaseSize * pixelRatio },
-        uSizeRandomness: { value: sizeRandomness },
-        uAlphaParticles: { value: alphaParticles ? 1 : 0 }
-      },
-      transparent: true,
-      depthTest: false
-    });
+      program = new Program(gl, {
+        vertex,
+        fragment,
+        uniforms: {
+          uTime: { value: 0 },
+          uSpread: { value: particleSpread },
+          uBaseSize: { value: particleBaseSize * pixelRatio },
+          uSizeRandomness: { value: sizeRandomness },
+          uAlphaParticles: { value: alphaParticles ? 1 : 0 }
+        },
+        transparent: true,
+        depthTest: false
+      });
 
-    const particles = new Mesh(gl, { mode: gl.POINTS, geometry, program });
+      particles = new Mesh(gl, { mode: gl.POINTS, geometry, program });
+    } catch {
+      geometry?.remove();
+      program?.remove();
+      gl.getExtension('WEBGL_lose_context')?.loseContext();
+      gl.canvas.remove();
+      return undefined;
+    }
 
     let animationFrameId;
-    let lastTime = performance.now();
+    let lastTime = 0;
     let elapsed = 0;
 
     const update = t => {
-      animationFrameId = requestAnimationFrame(update);
-      const delta = t - lastTime;
+      animationFrameId = null;
+      if (!activeRef.current || document.hidden || gl.isContextLost()) return;
+      const delta = lastTime ? Math.min(t - lastTime, 100) : 0;
       lastTime = t;
       elapsed += delta * speed;
 
@@ -206,24 +228,52 @@ const Particles = ({
         particles.rotation.z += 0.01 * speed;
       }
 
-      renderer.render({ scene: particles, camera });
+      try {
+        renderer.render({ scene: particles, camera });
+        animationFrameId = requestAnimationFrame(update);
+      } catch {
+        // Stop the loop if the graphics context stops accepting frames.
+      }
     };
 
-    animationFrameId = requestAnimationFrame(update);
+    const syncAnimation = () => {
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = null;
+      lastTime = 0;
+      if (activeRef.current && !document.hidden && !gl.isContextLost()) {
+        animationFrameId = requestAnimationFrame(update);
+      }
+    };
+    syncAnimationRef.current = syncAnimation;
+    const resizeObserver = new ResizeObserver(resize);
+    resizeObserver.observe(container);
+    window.addEventListener('resize', resize, false);
+    document.addEventListener('visibilitychange', syncAnimation);
+    gl.canvas.addEventListener('webglcontextlost', syncAnimation);
+    if (moveParticlesOnHover) {
+      container.addEventListener('mousemove', handleMouseMove);
+    }
+    syncAnimation();
 
     return () => {
+      syncAnimationRef.current = () => {};
+      resizeObserver.disconnect();
       window.removeEventListener('resize', resize);
+      document.removeEventListener('visibilitychange', syncAnimation);
+      gl.canvas.removeEventListener('webglcontextlost', syncAnimation);
       if (moveParticlesOnHover) {
         container.removeEventListener('mousemove', handleMouseMove);
       }
       cancelAnimationFrame(animationFrameId);
-      if (container.contains(gl.canvas)) {
-        container.removeChild(gl.canvas);
-      }
+      geometry.remove();
+      program.remove();
+      gl.getExtension('WEBGL_lose_context')?.loseContext();
+      gl.canvas.remove();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     particleCount,
+    particleColors,
     particleSpread,
     speed,
     moveParticlesOnHover,

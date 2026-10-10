@@ -1,6 +1,8 @@
 import { Component, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import GlobeGL from 'react-globe.gl'
-import { Color } from 'three'
+import GlobeGL from './GlobeRenderer'
+import { MeshPhongMaterial } from 'three'
+
+const RENDERER_CONFIG = { alpha: true, antialias: false, powerPreference: 'default' }
 
 const CITIES = {
   nyc: { lat: 40.71, lng: -74.01, name: 'New York' },
@@ -71,21 +73,21 @@ function offsetAt(elapsed) {
 }
 
 function collectDashUniforms(globe) {
-  const list = []
-  if (!globe) return list
+  const uniforms = new Set()
+  if (!globe) return []
   const scene = typeof globe.scene === 'function' ? globe.scene() : globe.scene
-  if (!scene || typeof scene.traverse !== 'function') return list
+  if (!scene || typeof scene.traverse !== 'function') return []
   scene.traverse((obj) => {
     if (obj.__globeObjType === 'arc') {
       const uniform = obj.children?.[0]?.material?.uniforms?.dashOffset
-      if (uniform) list.push(uniform)
+      if (uniform) uniforms.add(uniform)
       return
     }
     if (obj.type === 'Line' && obj.material?.uniforms?.dashOffset) {
-      list.push(obj.material.uniforms.dashOffset)
+      uniforms.add(obj.material.uniforms.dashOffset)
     }
   })
-  return list
+  return [...uniforms]
 }
 
 function sampleLandDots(image, rows) {
@@ -156,7 +158,9 @@ const GlobeCanvas = memo(function GlobeCanvas({
   atmosphereAltitude = 0.18,
   globeOpacity = 1,
   landDotRows = 170,
-  landMapUrl = '/earth-topology.png',
+  landMapUrl = `${import.meta.env.BASE_URL}earth-topology.png`,
+  reducedMotion = false,
+  maxPixelRatio = 1.5,
   className,
   onReady,
   onGlobeClick,
@@ -164,10 +168,20 @@ const GlobeCanvas = memo(function GlobeCanvas({
   const wrapRef = useRef(null)
   const globeRef = useRef(null)
   const dashUniformsRef = useRef([])
-  const visibleRef = useRef(true)
+  const arcTimeRef = useRef({ elapsed: 0, previous: 0 })
+  const [ready, setReady] = useState(false)
+  const [inView, setInView] = useState(true)
+  const [pageVisible, setPageVisible] = useState(() => !document.hidden)
   const [size, setSize] = useState({ w: 0, h: 0 })
   const [landDots, setLandDots] = useState([])
+  const active = inView && pageVisible
   const arcs = useMemo(() => makeArcs(arcCount), [arcCount])
+  const globeMaterial = useMemo(() => new MeshPhongMaterial({
+    // Match the original library's black sphere so gold dots and arcs stand out.
+    color: '#000000',
+    opacity: globeOpacity,
+    transparent: globeOpacity < 1,
+  }), [globeOpacity])
   const particles = useMemo(
     () => (landDots.length ? [{ dots: landDots }] : []),
     [landDots],
@@ -180,9 +194,11 @@ const GlobeCanvas = memo(function GlobeCanvas({
 
   const refreshDashUniforms = useCallback(() => {
     const found = collectDashUniforms(globeRef.current)
-    if (found.length) dashUniformsRef.current = found
+    dashUniformsRef.current = found
     return found.length
   }, [])
+
+  useEffect(() => () => globeMaterial.dispose(), [globeMaterial])
 
   useEffect(() => {
     const el = wrapRef.current
@@ -219,69 +235,97 @@ const GlobeCanvas = memo(function GlobeCanvas({
     const el = wrapRef.current
     if (!el || typeof IntersectionObserver === 'undefined') return undefined
     const io = new IntersectionObserver(
-      ([entry]) => {
-        visibleRef.current = entry.isIntersecting
-        const controls = globeRef.current?.controls?.()
-        if (controls) controls.autoRotate = entry.isIntersecting && autoRotateSpeed > 0
-      },
+      ([entry]) => setInView(entry.isIntersecting),
       { threshold: 0.05 },
     )
     io.observe(el)
     return () => io.disconnect()
-  }, [autoRotateSpeed, size.w])
+  }, [])
 
   useEffect(() => {
-    if (!size.w) return undefined
-    const timers = [80, 250, 700, 1400].map((ms) => window.setTimeout(refreshDashUniforms, ms))
-    return () => timers.forEach((id) => window.clearTimeout(id))
-  }, [landDots, arcs, size.w, refreshDashUniforms])
+    const updateVisibility = () => setPageVisible(!document.hidden)
+    document.addEventListener('visibilitychange', updateVisibility)
+    return () => document.removeEventListener('visibilitychange', updateVisibility)
+  }, [])
 
   useEffect(() => {
-    let frame = 0
-    let start = 0
+    if (!ready) return undefined
+    const scene = globeRef.current.scene()
+    const previousRender = scene.onBeforeRender
+    dashUniformsRef.current = []
 
-    const tick = (now) => {
-      frame = window.requestAnimationFrame(tick)
-      if (document.hidden || !visibleRef.current) return
-      const uniforms = dashUniformsRef.current
-      if (!uniforms.length) return
-      if (!start) start = now
-      const offset = offsetAt(now - start)
-      for (let i = 0; i < uniforms.length; i += 1) {
-        uniforms[i].value = offset
+    // Update arcs in the globe's render cycle instead of running a second RAF loop.
+    scene.onBeforeRender = function (...args) {
+      previousRender.apply(this, args)
+      if (!dashUniformsRef.current.length && arcs.length) refreshDashUniforms()
+      const now = performance.now()
+      const time = arcTimeRef.current
+      if (time.previous && !reducedMotion) time.elapsed += Math.min(now - time.previous, 100)
+      time.previous = now
+      const offset = reducedMotion ? 0 : offsetAt(time.elapsed)
+      for (const uniform of dashUniformsRef.current) {
+        uniform.value = offset
       }
     }
 
-    frame = window.requestAnimationFrame(tick)
-    return () => window.cancelAnimationFrame(frame)
-  }, [])
+    return () => {
+      scene.onBeforeRender = previousRender
+      dashUniformsRef.current = []
+    }
+  }, [ready, arcs, reducedMotion, refreshDashUniforms])
 
   const applyGlobe = useCallback(() => {
     const globe = globeRef.current
     if (!globe) return
+    globe.pointOfView({ lat: 12, lng: -28, altitude: cameraAltitude }, 0)
+    setReady(true)
+    onReady?.()
+  }, [cameraAltitude, onReady])
 
+  useEffect(() => {
+    if (!ready) return undefined
+    const globe = globeRef.current
     const controls = globe.controls()
-    controls.autoRotate = autoRotateSpeed > 0 && visibleRef.current
+    const animate = active && !reducedMotion
+    controls.autoRotate = animate && autoRotateSpeed > 0
     controls.autoRotateSpeed = autoRotateSpeed
     controls.enableZoom = enableZoom
     controls.enablePan = false
     controls.enableRotate = interactive
     controls.enableDamping = false
-    controls.enabled = interactive
-    globe.pointOfView({ lat: 12, lng: -28, altitude: cameraAltitude }, 0)
+    controls.enabled = active && (interactive || animate)
 
-    const material = globe.globeMaterial()
-    if (material) {
-      material.color = new Color('#1a1612')
-      material.emissive = new Color('#c6b48a')
-      material.emissiveIntensity = 0.14
-      material.opacity = globeOpacity
-      material.transparent = globeOpacity < 1
+    const renderer = globe.renderer()
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, maxPixelRatio)
+    renderer.setPixelRatio(pixelRatio)
+    globe.postProcessingComposer().setPixelRatio(pixelRatio)
+    arcTimeRef.current.previous = 0
+
+    if (animate) globe.resumeAnimation()
+    else globe.pauseAnimation()
+
+    // Reduced motion keeps the complete globe visible, rendering only on changes
+    // (including a deliberate drag), with no idle animation loop.
+    let frame = 0
+    const renderStill = () => {
+      window.cancelAnimationFrame(frame)
+      frame = window.requestAnimationFrame(() => {
+        frame = window.requestAnimationFrame(() => {
+          renderer.render(globe.scene(), globe.camera())
+        })
+      })
+    }
+    if (active && reducedMotion) {
+      renderStill()
+      controls.addEventListener('change', renderStill)
     }
 
-    refreshDashUniforms()
-    onReady?.()
-  }, [autoRotateSpeed, cameraAltitude, enableZoom, globeOpacity, interactive, onReady, refreshDashUniforms])
+    return () => {
+      window.cancelAnimationFrame(frame)
+      controls.removeEventListener('change', renderStill)
+      globe.pauseAnimation()
+    }
+  }, [ready, active, reducedMotion, autoRotateSpeed, enableZoom, interactive, maxPixelRatio, size, particles, arcs, globeMaterial])
 
   return (
     <div ref={wrapRef} className={className ? `h-full w-full ${className}` : 'h-full w-full'}>
@@ -292,14 +336,16 @@ const GlobeCanvas = memo(function GlobeCanvas({
           height={size.h}
           backgroundColor="rgba(0,0,0,0)"
           globeImageUrl={null}
+          globeMaterial={globeMaterial}
           showGlobe
           showAtmosphere={showAtmosphere}
           atmosphereColor={atmosphereColor || primaryColor}
           atmosphereAltitude={atmosphereAltitude}
           animateIn={false}
-          rendererConfig={{ alpha: true, antialias: false, powerPreference: 'high-performance' }}
+          rendererConfig={RENDERER_CONFIG}
           onGlobeReady={applyGlobe}
           onGlobeClick={onGlobeClick}
+          enablePointerInteraction={Boolean(onGlobeClick)}
           particlesData={particles}
           particlesList={particlesList}
           particleLat="lat"

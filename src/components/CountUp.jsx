@@ -1,95 +1,61 @@
-import { useInView, useMotionValue, useSpring } from 'motion/react';
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
+import { useMediaQuery } from '../hooks/useMediaQuery';
+import { useElementActivity } from '../hooks/useElementActivity';
 
 export default function CountUp({
-  to,
-  from = 0,
-  direction = 'up',
-  delay = 0,
-  duration = 2,
-  className = '',
-  startWhen = true,
-  separator = '',
-  onStart,
-  onEnd
+  to, from = 0, direction = 'up', delay = 0, duration = 2, className = '',
+  startWhen = true, separator = '', onStart, onEnd
 }) {
   const ref = useRef(null);
-  const motionValue = useMotionValue(direction === 'down' ? to : from);
-
-  const damping = 20 + 40 * (1 / duration);
-  const stiffness = 100 * (1 / duration);
-
-  const springValue = useSpring(motionValue, {
-    damping,
-    stiffness
-  });
-
-  const isInView = useInView(ref, { once: true, margin: '40% 0px' });
-
-  const getDecimalPlaces = num => {
-    const str = num.toString();
-
-    if (str.includes('.')) {
-      const decimals = str.split('.')[1];
-
-      if (parseInt(decimals) !== 0) {
-        return decimals.length;
-      }
-    }
-
-    return 0;
-  };
-
-  const maxDecimals = Math.max(getDecimalPlaces(from), getDecimalPlaces(to));
-
-  const formatValue = useCallback(latest => {
-    const hasDecimals = maxDecimals > 0;
-
-    const options = {
-      useGrouping: !!separator,
-      minimumFractionDigits: hasDecimals ? maxDecimals : 0,
-      maximumFractionDigits: hasDecimals ? maxDecimals : 0
-    };
-
-    const formattedNumber = Intl.NumberFormat('en-US', options).format(latest);
-
-    return separator ? formattedNumber.replace(/,/g, separator) : formattedNumber;
-  }, [maxDecimals, separator]);
-
-  useEffect(() => {
-    if (ref.current) {
-      ref.current.textContent = formatValue(direction === 'down' ? to : from);
-    }
-  }, [from, to, direction, formatValue]);
-
-  useEffect(() => {
-    if (isInView && startWhen) {
-      if (typeof onStart === 'function') onStart();
-
-      const timeoutId = setTimeout(() => {
-        motionValue.set(direction === 'down' ? from : to);
-      }, delay * 1000);
-
-      const durationTimeoutId = setTimeout(() => {
-        if (typeof onEnd === 'function') onEnd();
-      }, delay * 1000 + duration * 1000);
-
-      return () => {
-        clearTimeout(timeoutId);
-        clearTimeout(durationTimeoutId);
-      };
-    }
-  }, [isInView, startWhen, motionValue, direction, from, to, delay, onStart, onEnd, duration]);
-
-  useEffect(() => {
-    const unsubscribe = springValue.on('change', latest => {
-      if (ref.current) {
-        ref.current.textContent = formatValue(latest);
-      }
+  const elapsed = useRef(0);
+  const started = useRef(false);
+  const completed = useRef(false);
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const active = useElementActivity(ref);
+  const start = direction === 'down' ? to : from;
+  const end = direction === 'down' ? from : to;
+  const format = useMemo(() => {
+    const decimals = Math.max(...[from, to].map(value => (String(value).split('.')[1] || '').length));
+    const formatter = new Intl.NumberFormat('en-US', {
+      useGrouping: Boolean(separator), minimumFractionDigits: decimals, maximumFractionDigits: decimals
     });
+    return value => formatter.format(value).replace(/,/g, separator);
+  }, [from, to, separator]);
 
-    return () => unsubscribe();
-  }, [springValue, formatValue]);
+  useEffect(() => {
+    elapsed.current = 0;
+    started.current = false;
+    completed.current = false;
+    if (ref.current) ref.current.textContent = format(reducedMotion ? end : start);
+  }, [start, end, format, reducedMotion]);
 
-  return <span className={className} ref={ref} />;
+  useEffect(() => {
+    const element = ref.current;
+    if (!element || !startWhen || completed.current) return;
+    if (reducedMotion || duration <= 0) {
+      element.textContent = format(end);
+      completed.current = true;
+      onEnd?.();
+      return;
+    }
+    if (!active) return;
+    let frame;
+    let lastTime = null;
+    const draw = time => {
+      if (lastTime !== null) elapsed.current += Math.min(time - lastTime, 64);
+      lastTime = time;
+      const timeAfterDelay = elapsed.current - delay * 1000;
+      if (timeAfterDelay >= 0) {
+        if (!started.current) { started.current = true; onStart?.(); }
+        const progress = Math.min(1, timeAfterDelay / (duration * 1000));
+        element.textContent = format(start + (end - start) * (1 - Math.pow(1 - progress, 3)));
+        if (progress === 1) { completed.current = true; onEnd?.(); return; }
+      }
+      frame = requestAnimationFrame(draw);
+    };
+    frame = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(frame);
+  }, [active, reducedMotion, startWhen, start, end, format, duration, delay, onStart, onEnd]);
+
+  return <span className={className} ref={ref}>{format(reducedMotion ? end : start)}</span>;
 }

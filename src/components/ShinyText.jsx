@@ -1,115 +1,47 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
-import { motion, useMotionValue, useAnimationFrame, useTransform } from 'motion/react';
+import { useState, useEffect, useRef } from 'react';
+import { useMediaQuery } from '../hooks/useMediaQuery';
+import { useElementActivity } from '../hooks/useElementActivity';
 
 const ShinyText = ({
-  text,
-  disabled = false,
-  speed = 2,
-  className = '',
-  color = '#b5b5b5',
-  shineColor = '#ffffff',
-  spread = 120,
-  yoyo = false,
-  pauseOnHover = false,
-  direction = 'left',
-  delay = 0
+  text, disabled = false, speed = 2, className = '', color = '#b5b5b5', shineColor = '#ffffff',
+  spread = 120, yoyo = false, pauseOnHover = false, direction = 'left', delay = 0
 }) => {
+  const ref = useRef(null);
+  const animationRef = useRef(null);
   const [isPaused, setIsPaused] = useState(false);
-  const progress = useMotionValue(0);
-  const elapsedRef = useRef(0);
-  const lastTimeRef = useRef(null);
-  const directionRef = useRef(direction === 'left' ? 1 : -1);
-
-  const animationDuration = speed * 1000;
-  const delayDuration = delay * 1000;
-
-  useAnimationFrame(time => {
-    if (disabled || isPaused) {
-      lastTimeRef.current = null;
-      return;
-    }
-
-    if (lastTimeRef.current === null) {
-      lastTimeRef.current = time;
-      return;
-    }
-
-    const deltaTime = time - lastTimeRef.current;
-    lastTimeRef.current = time;
-
-    elapsedRef.current += deltaTime;
-
-    // Animation goes from 0 to 100
-    if (yoyo) {
-      const cycleDuration = animationDuration + delayDuration;
-      const fullCycle = cycleDuration * 2;
-      const cycleTime = elapsedRef.current % fullCycle;
-
-      if (cycleTime < animationDuration) {
-        // Forward animation: 0 -> 100
-        const p = (cycleTime / animationDuration) * 100;
-        progress.set(directionRef.current === 1 ? p : 100 - p);
-      } else if (cycleTime < cycleDuration) {
-        // Delay at end
-        progress.set(directionRef.current === 1 ? 100 : 0);
-      } else if (cycleTime < cycleDuration + animationDuration) {
-        // Reverse animation: 100 -> 0
-        const reverseTime = cycleTime - cycleDuration;
-        const p = 100 - (reverseTime / animationDuration) * 100;
-        progress.set(directionRef.current === 1 ? p : 100 - p);
-      } else {
-        // Delay at start
-        progress.set(directionRef.current === 1 ? 0 : 100);
-      }
-    } else {
-      const cycleDuration = animationDuration + delayDuration;
-      const cycleTime = elapsedRef.current % cycleDuration;
-
-      if (cycleTime < animationDuration) {
-        // Animation phase: 0 -> 100
-        const p = (cycleTime / animationDuration) * 100;
-        progress.set(directionRef.current === 1 ? p : 100 - p);
-      } else {
-        // Delay phase - hold at end (shine off-screen)
-        progress.set(directionRef.current === 1 ? 100 : 0);
-      }
-    }
-  });
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const active = useElementActivity(ref);
 
   useEffect(() => {
-    directionRef.current = direction === 'left' ? 1 : -1;
-    elapsedRef.current = 0;
-    progress.set(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [direction]);
+    if (!ref.current?.animate || disabled || reducedMotion || speed <= 0) return;
+    const start = direction === 'left' ? '150% center' : '-50% center';
+    const end = direction === 'left' ? '-50% center' : '150% center';
+    const travel = speed / (speed + Math.max(0, delay));
+    const animation = ref.current.animate([
+      { backgroundPosition: start, offset: 0 },
+      { backgroundPosition: end, offset: travel },
+      { backgroundPosition: end, offset: 1 }
+    ], { duration: (speed + Math.max(0, delay)) * 1000, iterations: Infinity, direction: yoyo ? 'alternate' : 'normal' });
+    animation.pause();
+    animationRef.current = animation;
+    return () => { animation.cancel(); animationRef.current = null; };
+  }, [speed, delay, direction, yoyo, disabled, reducedMotion]);
 
-  // Transform: p=0 -> 150% (shine off right), p=100 -> -50% (shine off left)
-  const backgroundPosition = useTransform(progress, p => `${150 - p * 2}% center`);
-
-  const handleMouseEnter = useCallback(() => {
-    if (pauseOnHover) setIsPaused(true);
-  }, [pauseOnHover]);
-
-  const handleMouseLeave = useCallback(() => {
-    if (pauseOnHover) setIsPaused(false);
-  }, [pauseOnHover]);
-
-  const gradientStyle = {
-    backgroundImage: `linear-gradient(${spread}deg, ${color} 0%, ${color} 35%, ${shineColor} 50%, ${color} 65%, ${color} 100%)`,
-    backgroundSize: '200% auto',
-    WebkitBackgroundClip: 'text',
-    backgroundClip: 'text',
-    WebkitTextFillColor: 'transparent'
-  };
+  useEffect(() => {
+    const animation = animationRef.current;
+    if (!animation) return;
+    if (active && !isPaused) animation.play();
+    else animation.pause();
+  }, [active, isPaused, speed, delay, direction, yoyo, disabled, reducedMotion]);
 
   return (
-    <motion.span
-      className={`inline-block ${className}`}
-      style={{ ...gradientStyle, backgroundPosition }}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}>
+    <span ref={ref} className={`inline-block ${className}`} style={{
+      backgroundImage: `linear-gradient(${spread}deg, ${color} 0%, ${color} 35%, ${shineColor} 50%, ${color} 65%, ${color} 100%)`,
+      backgroundSize: '200% auto', backgroundPosition: '150% center',
+      WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent'
+    }} onMouseEnter={() => pauseOnHover && setIsPaused(true)} onMouseLeave={() => setIsPaused(false)}>
       {text}
-    </motion.span>
+    </span>
   );
 };
 

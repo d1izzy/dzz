@@ -1,44 +1,50 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { href, site } from '../data/site'
+import { requestMessage, telegramDraftUrl } from '../lib/telegram'
 import AnimatedContent from './AnimatedContent'
 import SpotlightCard from './SpotlightCard'
 import { IconArrow, IconTelegram } from './icons'
 
-function formatTelegram(value) {
-  const handle = String(value || '').trim()
-  if (!handle) return handle
-  if (handle.startsWith('@') || handle.includes('t.me/')) return handle
-  return `@${handle}`
-}
-
-function requestMessage({ name, telegram, task }) {
-  return [
-    'Заявка с сайта dzz.',
-    '',
-    `Имя: ${String(name || '').trim()}`,
-    `Telegram: ${formatTelegram(telegram)}`,
-    '',
-    'Задача:',
-    String(task || '').trim(),
-  ].join('\n')
-}
-
 export default function Contact() {
-  const [status, setStatus] = useState('idle')
+  const [draft, setDraft] = useState(null)
+  const [copyStatus, setCopyStatus] = useState('idle')
+  const manualCopyRef = useRef(null)
 
   function onSubmit(e) {
     e.preventDefault()
     const form = e.currentTarget
     const data = Object.fromEntries(new FormData(form))
+    const requiredFields = {
+      name: 'Введите имя, чтобы я знал, как к вам обращаться.',
+      telegram: 'Введите ваш Telegram: @username или ссылку на профиль.',
+      task: 'Кратко опишите задачу.',
+    }
+    for (const [name, message] of Object.entries(requiredFields)) {
+      form.elements.namedItem(name).setCustomValidity(String(data[name] ?? '').trim() ? '' : message)
+    }
+    if (!form.reportValidity()) return
+
     const text = requestMessage({
       name: data.name,
       telegram: data.telegram,
       task: data.task,
     })
 
-    window.open(`${site.telegramUrl}?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer')
-    form.reset()
-    setStatus('sent')
+    const url = telegramDraftUrl(site.telegramUrl, text)
+    setDraft({ text, url })
+    setCopyStatus('idle')
+    // A new tab is only a handoff; Telegram still requires the user's send action.
+    // noopener may return null even when it opens, so do not infer delivery from it.
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  async function copyMessage() {
+    try {
+      await navigator.clipboard.writeText(draft.text)
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('manual')
+    }
   }
 
   return (
@@ -73,18 +79,15 @@ export default function Contact() {
             className="!rounded-3xl !border-white/10 !bg-white/[0.03] !p-0"
             spotlightColor="rgba(198, 180, 138, 0.14)"
           >
-            {status === 'sent' ? (
-              <div className="relative z-[1] p-8">
-                <p className="font-serif text-3xl">Заявка собрана.</p>
-                <p className="muted mt-3">
-                  Откроется чат с @{site.telegram}. Если окно не появилось — напишите напрямую.
-                </p>
-                <button type="button" className="btn btn-ghost mt-6" onClick={() => setStatus('idle')}>
-                  Ещё одно сообщение
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={onSubmit} className="relative z-[1] space-y-4 p-6 sm:p-8">
+              <form
+                onSubmit={onSubmit}
+                onInput={(event) => event.target.setCustomValidity?.('')}
+                onChange={() => {
+                  setDraft(null)
+                  setCopyStatus('idle')
+                }}
+                className="relative z-[1] space-y-4 p-6 sm:p-8"
+              >
                 <label className="block">
                   <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-white/40">
                     Ваше имя
@@ -93,7 +96,7 @@ export default function Contact() {
                     name="name"
                     required
                     autoComplete="name"
-                    className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm outline-none focus:border-accent"
+                    className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-base outline-none focus:border-accent sm:text-sm"
                     placeholder="Как обращаться"
                   />
                 </label>
@@ -105,7 +108,9 @@ export default function Contact() {
                     name="telegram"
                     required
                     autoComplete="username"
-                    className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm outline-none focus:border-accent"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-base outline-none focus:border-accent sm:text-sm"
                     placeholder="@username"
                   />
                 </label>
@@ -117,7 +122,7 @@ export default function Contact() {
                     name="task"
                     required
                     rows={5}
-                    className="w-full resize-y rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm outline-none focus:border-accent"
+                    className="w-full resize-y rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-base outline-none focus:border-accent sm:text-sm"
                     placeholder="Что нужно, сроки, ссылки"
                   />
                 </label>
@@ -139,11 +144,45 @@ export default function Contact() {
                     </a>
                   </span>
                 </label>
-                <button type="submit" className="btn btn-primary">
-                  Отправить
+                <button type="submit" className="btn btn-primary" aria-describedby="contact-handoff-hint">
+                  Перейти в Telegram
                 </button>
+                <p id="contact-handoff-hint" className="text-sm leading-relaxed text-ink/65">
+                  Текст заявки откроется в чате. Отправку нужно подтвердить в Telegram.
+                </p>
+                <p role="status" aria-atomic="true" className="text-sm leading-relaxed text-ink/80">
+                  {draft ? (copyStatus === 'copied'
+                    ? 'Текст скопирован. Вставьте его в чат и отправьте в Telegram.'
+                    : copyStatus === 'manual'
+                      ? 'Браузер не разрешил копирование. Выделите и скопируйте текст ниже.'
+                      : 'Заявка подготовлена. Если Telegram не открылся или текст не появился, воспользуйтесь кнопками ниже.') : null}
+                </p>
+                {draft ? (
+                  <div className="space-y-4 border-t border-white/10 pt-4">
+                    <div className="flex flex-wrap gap-3">
+                      <a href={draft.url} target="_blank" rel="noopener noreferrer" className="btn btn-ghost">
+                        Открыть Telegram
+                      </a>
+                      <button type="button" className="btn btn-ghost" onClick={copyMessage}>
+                        Скопировать текст
+                      </button>
+                    </div>
+                    {copyStatus === 'manual' ? (
+                      <label className="block">
+                        <span className="mb-2 block text-sm text-ink/80">Текст заявки для копирования</span>
+                        <textarea
+                          ref={manualCopyRef}
+                          readOnly
+                          value={draft.text}
+                          rows={8}
+                          onFocus={() => manualCopyRef.current?.select()}
+                          className="w-full resize-y rounded-2xl border border-accent/40 bg-black/40 px-4 py-3 text-base outline-none focus:border-accent sm:text-sm"
+                        />
+                      </label>
+                    ) : null}
+                  </div>
+                ) : null}
               </form>
-            )}
           </SpotlightCard>
         </AnimatedContent>
       </div>

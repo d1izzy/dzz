@@ -1,59 +1,38 @@
 import { useEffect, useRef } from 'react'
-import { gsap } from 'gsap'
-import { ScrollTrigger } from 'gsap/ScrollTrigger'
-
-gsap.registerPlugin(ScrollTrigger)
+import { useMediaQuery } from '../hooks/useMediaQuery'
 
 export default function CaseReveal({ children, reverse = false, className = '' }) {
   const ref = useRef(null)
+  const revealed = useRef(false)
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
 
   useEffect(() => {
     const el = ref.current
-    if (!el) return undefined
-
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      gsap.set(el, { autoAlpha: 1 })
-      return undefined
-    }
-
-    const tween = gsap.fromTo(
-      el,
-      {
-        autoAlpha: 0,
-        y: 90,
-        x: reverse ? -48 : 48,
-        rotateX: 16,
-        rotateY: reverse ? -8 : 8,
-        scale: 0.9,
-        filter: 'blur(12px)',
-      },
-      {
-        autoAlpha: 1,
-        y: 0,
-        x: 0,
-        rotateX: 0,
-        rotateY: 0,
-        scale: 1,
-        filter: 'blur(0px)',
-        duration: 1.15,
-        ease: 'power3.out',
-        scrollTrigger: {
-          trigger: el,
-          start: 'top 88%',
-          once: true,
-        },
-      },
-    )
+    if (!el || revealed.current || reducedMotion || !el.animate) return undefined
+    let animation
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) return
+      revealed.current = true
+      animation = el.animate([
+        { opacity: 0, transform: `translate(${reverse ? -48 : 48}px, 90px) rotateX(16deg) rotateY(${reverse ? -8 : 8}deg) scale(.9)` },
+        { opacity: 1, transform: 'none' },
+      ], { duration: 1150, easing: 'cubic-bezier(.22,1,.36,1)' })
+      observer.disconnect()
+    }, { rootMargin: '0px 0px 80px 0px' })
+    observer.observe(el)
+    const finish = () => animation?.finish()
+    el.addEventListener('focusin', finish)
 
     return () => {
-      tween.scrollTrigger?.kill()
-      tween.kill()
+      observer.disconnect()
+      animation?.cancel()
+      el.removeEventListener('focusin', finish)
     }
-  }, [reverse])
+  }, [reverse, reducedMotion])
 
   return (
     <div className={`h-full min-w-0 [perspective:1400px] ${className}`}>
-      <div ref={ref} className="h-full origin-bottom will-change-transform" style={{ visibility: 'hidden' }}>
+      <div ref={ref} className="h-full origin-bottom">
         {children}
       </div>
     </div>

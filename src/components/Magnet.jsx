@@ -1,73 +1,61 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
+import { useMediaQuery } from '../hooks/useMediaQuery';
+import { useElementActivity } from '../hooks/useElementActivity';
 
 const Magnet = ({
-  children,
-  padding = 100,
-  disabled = false,
-  magnetStrength = 2,
-  activeTransition = 'transform 0.3s ease-out',
-  inactiveTransition = 'transform 0.5s ease-in-out',
-  wrapperClassName = '',
-  innerClassName = '',
-  ...props
+  children, padding = 100, disabled = false, magnetStrength = 2,
+  activeTransition = 'transform 0.3s ease-out', inactiveTransition = 'transform 0.5s ease-in-out',
+  wrapperClassName = '', innerClassName = '', ...props
 }) => {
-  const [isActive, setIsActive] = useState(false);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
   const magnetRef = useRef(null);
+  const innerRef = useRef(null);
+  const active = useElementActivity(magnetRef);
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const hasMouse = useMediaQuery('(hover: hover) and (pointer: fine)');
 
   useEffect(() => {
-    if (disabled) {
-      setPosition({ x: 0, y: 0 });
-      return;
-    }
-
-    const handleMouseMove = e => {
-      if (!magnetRef.current) return;
-
+    const element = innerRef.current;
+    if (!element || disabled || reducedMotion || !hasMouse || !active) return;
+    let frame = null;
+    let point;
+    const reset = () => {
+      if (frame !== null) cancelAnimationFrame(frame);
+      frame = null;
+      element.style.transform = 'translate3d(0, 0, 0)';
+      element.style.transition = inactiveTransition;
+      element.style.removeProperty('will-change');
+    };
+    const draw = () => {
+      frame = null;
       const { left, top, width, height } = magnetRef.current.getBoundingClientRect();
-      const centerX = left + width / 2;
-      const centerY = top + height / 2;
-
-      const distX = Math.abs(centerX - e.clientX);
-      const distY = Math.abs(centerY - e.clientY);
-
-      if (distX < width / 2 + padding && distY < height / 2 + padding) {
-        setIsActive(true);
-
-        const offsetX = (e.clientX - centerX) / magnetStrength;
-        const offsetY = (e.clientY - centerY) / magnetStrength;
-        setPosition({ x: offsetX, y: offsetY });
-      } else {
-        setIsActive(false);
-        setPosition({ x: 0, y: 0 });
-      }
+      const x = point.x - left - width / 2;
+      const y = point.y - top - height / 2;
+      if (Math.abs(x) < width / 2 + padding && Math.abs(y) < height / 2 + padding) {
+        element.style.transition = activeTransition;
+        element.style.willChange = 'transform';
+        element.style.transform = `translate3d(${x / Math.max(1, magnetStrength)}px, ${y / Math.max(1, magnetStrength)}px, 0)`;
+      } else reset();
     };
-
-    window.addEventListener('mousemove', handleMouseMove);
+    const move = event => {
+      if (event.pointerType !== 'mouse') return;
+      point = { x: event.clientX, y: event.clientY };
+      if (frame === null) frame = requestAnimationFrame(draw);
+    };
+    const wrapper = magnetRef.current;
+    window.addEventListener('pointermove', move, { passive: true });
+    window.addEventListener('blur', reset);
+    wrapper.addEventListener('focusin', reset);
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('blur', reset);
+      wrapper.removeEventListener('focusin', reset);
+      reset();
     };
-  }, [padding, disabled, magnetStrength]);
+  }, [active, disabled, reducedMotion, hasMouse, padding, magnetStrength, activeTransition, inactiveTransition]);
 
-  const transitionStyle = isActive ? activeTransition : inactiveTransition;
-
-  return (
-    <div
-      ref={magnetRef}
-      className={wrapperClassName}
-      style={{ position: 'relative', display: 'inline-block' }}
-      {...props}>
-      <div
-        className={innerClassName}
-        style={{
-          transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
-          transition: transitionStyle,
-          willChange: 'transform'
-        }}>
-        {children}
-      </div>
-    </div>
-  );
+  return <div ref={magnetRef} className={wrapperClassName} style={{ position: 'relative', display: 'inline-block' }} {...props}>
+    <div ref={innerRef} className={innerClassName}>{children}</div>
+  </div>;
 };
 
 export default Magnet;

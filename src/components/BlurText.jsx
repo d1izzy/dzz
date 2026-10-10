@@ -1,5 +1,6 @@
 import { motion } from 'motion/react';
 import { useEffect, useRef, useState, useMemo } from 'react';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 
 const buildKeyframes = (from, steps) => {
   const keys = new Set([...Object.keys(from), ...steps.flatMap(s => Object.keys(s))]);
@@ -28,9 +29,14 @@ const BlurText = ({
   const elements = animateBy === 'words' ? text.split(' ') : text.split('');
   const [inView, setInView] = useState(false);
   const ref = useRef(null);
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
 
   useEffect(() => {
     if (!ref.current) return;
+    if (reducedMotion || !window.IntersectionObserver) {
+      setInView(true);
+      return;
+    }
     const observer = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting) {
         setInView(true);
@@ -39,7 +45,7 @@ const BlurText = ({
     }, { threshold, rootMargin });
     observer.observe(ref.current);
     return () => observer.disconnect();
-  }, [threshold, rootMargin]);
+  }, [threshold, rootMargin, reducedMotion]);
 
   const defaultFrom = useMemo(() =>
     direction === 'top' ? { filter: 'blur(10px)', opacity: 0, y: -50 } : { filter: 'blur(10px)', opacity: 0, y: 50 }, [direction]);
@@ -64,8 +70,9 @@ const BlurText = ({
   );
 
   return (
-    <p ref={ref} className={`blur-text ${className} flex flex-wrap`}>
-      {elements.map((segment, index) => {
+    <span ref={ref} className={`blur-text ${className} flex flex-wrap`}>
+      <span className="sr-only">{text}</span>
+      {reducedMotion ? <span aria-hidden="true">{text}</span> : elements.map((segment, index) => {
         const animateKeyframes = buildKeyframes(fromSnapshot, toSnapshots);
 
         const spanTransition = {
@@ -77,7 +84,8 @@ const BlurText = ({
 
         return (
           <motion.span
-            className="inline-block will-change-[transform,filter,opacity]"
+            aria-hidden="true"
+            className="inline-block"
             key={index}
             initial={fromSnapshot}
             animate={inView ? animateKeyframes : fromSnapshot}
@@ -88,7 +96,7 @@ const BlurText = ({
           </motion.span>
         );
       })}
-    </p>
+    </span>
   );
 };
 

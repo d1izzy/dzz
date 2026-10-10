@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useElementActivity } from '../hooks/useElementActivity'
 
 const FRAME_W = 1440
 const FRAME_H = 900
@@ -11,9 +12,9 @@ function hostLabel(url) {
   }
 }
 
-export default function LivePreview({ url, title }) {
+export default function LivePreview({ url, title, cover }) {
   const boxRef = useRef(null)
-  const [src, setSrc] = useState('')
+  const active = useElementActivity(boxRef)
   const [scale, setScale] = useState(0.2)
   const [ready, setReady] = useState(false)
 
@@ -26,24 +27,15 @@ export default function LivePreview({ url, title }) {
       if (w) setScale(w / FRAME_W)
     }
 
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setSrc(url)
-          io.disconnect()
-        }
-      },
-      { rootMargin: '160px 0px' },
-    )
-
-    io.observe(box)
+    const observer = new ResizeObserver(fit)
+    observer.observe(box)
     fit()
-    window.addEventListener('resize', fit)
     return () => {
-      io.disconnect()
-      window.removeEventListener('resize', fit)
+      observer.disconnect()
     }
-  }, [url])
+  }, [])
+
+  useEffect(() => { setReady(false) }, [active, url])
 
   return (
     <div ref={boxRef} className="live-preview relative h-full overflow-hidden bg-[#0a0a0a]">
@@ -55,20 +47,22 @@ export default function LivePreview({ url, title }) {
           {hostLabel(url)}
         </span>
         <span className="flex items-center gap-1 text-[10px] uppercase tracking-[0.14em] text-white/50">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-          Live
+          <span className={`h-1.5 w-1.5 rounded-full ${ready && active ? 'bg-emerald-400' : 'bg-accent'}`} />
+          {ready && active ? 'Live' : 'Preview'}
         </span>
       </div>
 
       <div className="absolute inset-0 top-9">
-        {src ? (
+        <img src={cover} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover object-top" />
+        {active ? (
           <iframe
-            src={src}
+            src={url}
             title={title}
             loading="lazy"
             tabIndex={-1}
             aria-hidden
             scrolling="no"
+            referrerPolicy="no-referrer"
             className="pointer-events-none absolute left-0 top-0 origin-top-left border-0 bg-black"
             style={{
               width: FRAME_W,

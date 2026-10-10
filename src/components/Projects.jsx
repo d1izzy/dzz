@@ -10,7 +10,7 @@ export default function Projects() {
         <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-accent">Работы</p>
         <h2 className="headline mt-2">Живые страницы, не макеты</h2>
         <p className="muted mt-3 max-w-md">
-          На компьютере — живое превью. На телефоне — кадр сайта. Клик открывает оригинал.
+          Сайты и приложения в работе. Нажмите на проект, чтобы открыть его.
         </p>
       </AnimatedContent>
 

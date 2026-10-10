@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect } from 'react';
 import { Renderer, Program, Triangle, Mesh } from 'ogl';
 
 const DEFAULT_COLOR = '#ffffff';
@@ -43,6 +43,8 @@ const LightRays = ({
   mouseInfluence = 0.1,
   noiseAmount = 0.0,
   distortion = 0.0,
+  active = true,
+  maxDpr = 1.5,
   className = ''
 }) => {
   const containerRef = useRef(null);
@@ -52,57 +54,36 @@ const LightRays = ({
   const smoothMouseRef = useRef({ x: 0.5, y: 0.5 });
   const animationIdRef = useRef(null);
   const meshRef = useRef(null);
-  const cleanupFunctionRef = useRef(null);
-  const [isVisible, setIsVisible] = useState(false);
-  const observerRef = useRef(null);
+  const activeRef = useRef(active);
+  const syncAnimationRef = useRef(() => {});
+  activeRef.current = active;
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    syncAnimationRef.current();
+  }, [active]);
 
-    observerRef.current = new IntersectionObserver(entries => {
-      const entry = entries[0];
-      setIsVisible(entry.isIntersecting);
-    }, { threshold: 0.1 });
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
 
-    observerRef.current.observe(containerRef.current);
-
-    return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-        observerRef.current = null;
+    const initializeWebGL = () => {
+      let renderer;
+      try {
+        renderer = new Renderer({
+          dpr: Math.min(window.devicePixelRatio || 1, maxDpr),
+          alpha: true
+        });
+      } catch {
+        // Decorative rays can be omitted when WebGL is unavailable.
+        return undefined;
       }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isVisible || !containerRef.current) return;
-
-    if (cleanupFunctionRef.current) {
-      cleanupFunctionRef.current();
-      cleanupFunctionRef.current = null;
-    }
-
-    const initializeWebGL = async () => {
-      if (!containerRef.current) return;
-
-      await new Promise(resolve => setTimeout(resolve, 10));
-
-      if (!containerRef.current) return;
-
-      const renderer = new Renderer({
-        dpr: Math.min(window.devicePixelRatio, 2),
-        alpha: true
-      });
       rendererRef.current = renderer;
 
       const gl = renderer.gl;
       gl.canvas.style.width = '100%';
       gl.canvas.style.height = '100%';
 
-      while (containerRef.current.firstChild) {
-        containerRef.current.removeChild(containerRef.current.firstChild);
-      }
-      containerRef.current.appendChild(gl.canvas);
+      container.appendChild(gl.canvas);
 
       const vert = `
 attribute vec2 position;
@@ -227,17 +208,28 @@ void main() {
       };
       uniformsRef.current = uniforms;
 
-      const geometry = new Triangle(gl);
-      const program = new Program(gl, { vertex: vert, fragment: frag, uniforms });
-      const mesh = new Mesh(gl, { geometry, program });
+      let geometry;
+      let program;
+      let mesh;
+      try {
+        geometry = new Triangle(gl);
+        program = new Program(gl, { vertex: vert, fragment: frag, uniforms });
+        mesh = new Mesh(gl, { geometry, program });
+      } catch {
+        geometry?.remove();
+        program?.remove();
+        gl.getExtension('WEBGL_lose_context')?.loseContext();
+        gl.canvas.remove();
+        rendererRef.current = null;
+        uniformsRef.current = null;
+        return undefined;
+      }
       meshRef.current = mesh;
 
       const updatePlacement = () => {
-        if (!containerRef.current || !renderer) return;
+        renderer.dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
 
-        renderer.dpr = Math.min(window.devicePixelRatio, 2);
-
-        const { clientWidth: wCSS, clientHeight: hCSS } = containerRef.current;
+        const { clientWidth: wCSS, clientHeight: hCSS } = container;
         renderer.setSize(wCSS, hCSS);
 
         const dpr = renderer.dpr;
@@ -252,7 +244,8 @@ void main() {
       };
 
       const loop = t => {
-        if (!rendererRef.current || !uniformsRef.current || !meshRef.current) {
+        animationIdRef.current = null;
+        if (!activeRef.current || document.hidden || gl.isContextLost()) {
           return;
         }
 
@@ -276,33 +269,36 @@ void main() {
         }
       };
 
+      const syncAnimation = () => {
+        cancelAnimationFrame(animationIdRef.current);
+        animationIdRef.current = null;
+        if (activeRef.current && !document.hidden && !gl.isContextLost()) {
+          animationIdRef.current = requestAnimationFrame(loop);
+        }
+      };
+      syncAnimationRef.current = syncAnimation;
+      const resizeObserver = new ResizeObserver(updatePlacement);
+      resizeObserver.observe(container);
       window.addEventListener('resize', updatePlacement);
+      document.addEventListener('visibilitychange', syncAnimation);
+      gl.canvas.addEventListener('webglcontextlost', syncAnimation);
       updatePlacement();
-      animationIdRef.current = requestAnimationFrame(loop);
+      syncAnimation();
 
-      cleanupFunctionRef.current = () => {
-        if (animationIdRef.current) {
-          cancelAnimationFrame(animationIdRef.current);
-          animationIdRef.current = null;
-        }
+      return () => {
+        cancelAnimationFrame(animationIdRef.current);
+        animationIdRef.current = null;
+        syncAnimationRef.current = () => {};
 
+        resizeObserver.disconnect();
         window.removeEventListener('resize', updatePlacement);
+        document.removeEventListener('visibilitychange', syncAnimation);
+        gl.canvas.removeEventListener('webglcontextlost', syncAnimation);
+        geometry.remove();
+        program.remove();
 
-        if (renderer) {
-          try {
-            const canvas = renderer.gl.canvas;
-            const loseContextExt = renderer.gl.getExtension('WEBGL_lose_context');
-            if (loseContextExt) {
-              loseContextExt.loseContext();
-            }
-
-            if (canvas && canvas.parentNode) {
-              canvas.parentNode.removeChild(canvas);
-            }
-          } catch (error) {
-            console.warn('Error during WebGL cleanup:', error);
-          }
-        }
+        gl.getExtension('WEBGL_lose_context')?.loseContext();
+        gl.canvas.remove();
 
         rendererRef.current = null;
         uniformsRef.current = null;
@@ -310,16 +306,9 @@ void main() {
       };
     };
 
-    initializeWebGL();
-
-    return () => {
-      if (cleanupFunctionRef.current) {
-        cleanupFunctionRef.current();
-        cleanupFunctionRef.current = null;
-      }
-    };
+    return initializeWebGL();
   }, [
-    isVisible,
+    maxDpr,
     raysOrigin,
     raysColor,
     raysSpeed,
@@ -379,11 +368,11 @@ void main() {
       mouseRef.current = { x, y };
     };
 
-    if (followMouse) {
+    if (followMouse && active) {
       window.addEventListener('mousemove', handleMouseMove);
       return () => window.removeEventListener('mousemove', handleMouseMove);
     }
-  }, [followMouse]);
+  }, [followMouse, active]);
 
   return (
     <div

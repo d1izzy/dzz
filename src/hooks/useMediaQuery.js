@@ -1,15 +1,24 @@
-import { useEffect, useState } from 'react'
+import { useMemo, useSyncExternalStore } from 'react'
+
+const queries = new Map()
+
+function mediaStore(query) {
+  if (!queries.has(query)) {
+    const media = window.matchMedia(query)
+    queries.set(query, {
+      subscribe: (notify) => {
+        media.addEventListener('change', notify)
+        return () => media.removeEventListener('change', notify)
+      },
+      getSnapshot: () => media.matches,
+    })
+  }
+  return queries.get(query)
+}
+
+const getServerSnapshot = () => false
 
 export function useMediaQuery(query) {
-  const [matches, setMatches] = useState(false)
-
-  useEffect(() => {
-    const mq = window.matchMedia(query)
-    const apply = () => setMatches(mq.matches)
-    apply()
-    mq.addEventListener('change', apply)
-    return () => mq.removeEventListener('change', apply)
-  }, [query])
-
-  return matches
+  const store = useMemo(() => mediaStore(query), [query])
+  return useSyncExternalStore(store.subscribe, store.getSnapshot, getServerSnapshot)
 }

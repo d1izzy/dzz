@@ -244,8 +244,8 @@ body {
 .hero-globe-widget {
   position: relative;
   z-index: 2;
-  width: min(520px, 90vw);
-  height: min(520px, 90vw);
+  width: clamp(340px, 38vw, 520px);
+  height: clamp(340px, 38vw, 520px);
   flex: 0 0 auto;
   overflow: visible;
   cursor: grab;
@@ -272,6 +272,14 @@ body {
 
 .hero-globe-widget:active canvas {
   cursor: grabbing;
+}
+
+@media (pointer: coarse), (hover: none), (prefers-reduced-motion: reduce) {
+  .hero-globe-widget,
+  .hero-globe-widget canvas {
+    touch-action: pan-y !important;
+    cursor: default;
+  }
 }
 
 .hero-magnet span {
@@ -394,5 +402,11 @@ body {
 
   .btn-primary:hover {
     transform: none;
+  }
+
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

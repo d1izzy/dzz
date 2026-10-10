@@ -2,11 +2,15 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { globeLifecyclePlugin, globeLifecycleOptimizer } from './build/globe-lifecycle.mjs'
 
 const root = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [globeLifecyclePlugin(), react()],
+  optimizeDeps: {
+    esbuildOptions: { plugins: [globeLifecycleOptimizer()] },
+  },
   resolve: {
     alias: {
       '@': root,

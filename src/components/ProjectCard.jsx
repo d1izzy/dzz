@@ -1,5 +1,7 @@
 import GlareHover from './GlareHover'
 import { useMediaQuery } from '../hooks/useMediaQuery'
+import { useSaveData } from '../hooks/useSaveData'
+import { href } from '../data/site'
 import { IconArrow } from './icons'
 import LivePreview from './LivePreview'
 
@@ -31,7 +33,10 @@ function PreviewChrome({ url, children, live }) {
 }
 
 export default function ProjectCard({ project }) {
-  const isDesktop = useMediaQuery('(min-width: 768px)')
+  const desktopPointer = useMediaQuery('(min-width: 1024px) and (hover: hover) and (pointer: fine)')
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
+  const saveData = useSaveData()
+  const isDesktop = desktopPointer && !saveData && !reducedMotion
 
   return (
     <article className="flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] shadow-card">
@@ -39,6 +44,7 @@ export default function ProjectCard({ project }) {
         href={project.url}
         target="_blank"
         rel="noopener noreferrer"
+        aria-label={`Открыть проект «${project.title}»`}
         className="relative block aspect-[16/10] w-full shrink-0 bg-black"
       >
         {isDesktop ? (
@@ -54,14 +60,16 @@ export default function ProjectCard({ project }) {
             className="!absolute !inset-0 !border-0"
           >
             <div className="absolute inset-0 h-full w-full overflow-hidden">
-              <LivePreview url={project.url} title={project.title} />
+              <LivePreview url={project.url} title={project.title} cover={href(project.cover)} />
             </div>
           </GlareHover>
         ) : (
           <PreviewChrome url={project.url} live={false}>
             <img
-              src={project.cover}
+              src={href(project.cover)}
               alt=""
+              loading="lazy"
+              decoding="async"
               className="h-full w-full object-cover object-top"
             />
           </PreviewChrome>
@@ -88,7 +96,7 @@ export default function ProjectCard({ project }) {
               href={link.href}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:text-ink"
+              className="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-accent hover:text-ink"
             >
               {link.label}
               <IconArrow className="h-3.5 w-3.5" />

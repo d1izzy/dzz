@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#080706" />
+    <title>dzz — локальные проверки</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      #test-controls { position: fixed; right: 12px; bottom: 12px; z-index: 100; width: min(440px, calc(100vw - 24px)); max-height: 50dvh; overflow: auto; border: 1px solid #c6b48a; border-radius: 14px; padding: 14px; background: #080706f5; color: #e8dcc8; font: 13px/1.45 system-ui, sans-serif; }
+      #test-controls summary { cursor: pointer; font-weight: 600; }
+      #test-controls .test-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+      #test-controls button { min-height: 44px; padding: 8px 12px; border: 1px solid #c6b48a80; border-radius: 8px; background: #191611; color: inherit; cursor: pointer; }
+      #test-controls button:disabled { opacity: 0.5; cursor: wait; }
+      #test-results { margin-top: 10px; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.4 ui-monospace, monospace; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <aside id="test-controls" aria-label="Локальные проверки">
+      <details open>
+        <summary>Локальные проверки</summary>
+        <div class="test-actions">
+          <button id="run-checks" type="button" disabled>Run checks</button>
+          <button id="toggle-motion" type="button" aria-pressed="false">Уменьшить движение: выкл.</button>
+        </div>
+        <pre id="test-results" aria-label="Результаты тестов" role="status">{"state":"loading"}</pre>
+      </details>
+    </aside>
+    <script type="module" src="/tests/browser.jsx"></script>
+  </body>
+</html>

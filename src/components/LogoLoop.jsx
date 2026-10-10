@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from 'react';
+import { useMediaQuery } from '../hooks/useMediaQuery';
+import { useElementActivity } from '../hooks/useElementActivity';
 
 const ANIMATION_CONFIG = {
   SMOOTH_TAU: 0.25,
@@ -69,7 +71,7 @@ const useImageLoader = (seqRef, onLoad, dependencies) => {
   }, [onLoad, seqRef, dependencies]);
 };
 
-const useAnimationLoop = (trackRef, targetVelocity, seqWidth, seqHeight, isHovered, hoverSpeed, isVertical) => {
+const useAnimationLoop = (trackRef, targetVelocity, seqWidth, seqHeight, isHovered, hoverSpeed, isVertical, active, reducedMotion) => {
   const rafRef = useRef(null);
   const lastTimestampRef = useRef(null);
   const offsetRef = useRef(0);
@@ -78,11 +80,6 @@ const useAnimationLoop = (trackRef, targetVelocity, seqWidth, seqHeight, isHover
   useEffect(() => {
     const track = trackRef.current;
     if (!track) return;
-
-    const prefersReduced =
-      typeof window !== 'undefined' &&
-      window.matchMedia &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     const seqSize = isVertical ? seqHeight : seqWidth;
 
@@ -94,19 +91,21 @@ const useAnimationLoop = (trackRef, targetVelocity, seqWidth, seqHeight, isHover
       track.style.transform = transformValue;
     }
 
-    if (prefersReduced) {
+    if (reducedMotion) {
       track.style.transform = isVertical ? 'translate3d(0, 0, 0)' : 'translate3d(0, 0, 0)';
       return () => {
         lastTimestampRef.current = null;
       };
     }
 
+    if (!active || seqSize <= 0 || targetVelocity === 0 || (isHovered && hoverSpeed === 0)) return;
+
     const animate = timestamp => {
       if (lastTimestampRef.current === null) {
         lastTimestampRef.current = timestamp;
       }
 
-      const deltaTime = Math.max(0, timestamp - lastTimestampRef.current) / 1000;
+      const deltaTime = Math.min(64, Math.max(0, timestamp - lastTimestampRef.current)) / 1000;
       lastTimestampRef.current = timestamp;
 
       const target = isHovered && hoverSpeed !== undefined ? hoverSpeed : targetVelocity;
@@ -137,7 +136,7 @@ const useAnimationLoop = (trackRef, targetVelocity, seqWidth, seqHeight, isHover
       }
       lastTimestampRef.current = null;
     };
-  }, [targetVelocity, seqWidth, seqHeight, isHovered, hoverSpeed, isVertical, trackRef]);
+  }, [targetVelocity, seqWidth, seqHeight, isHovered, hoverSpeed, isVertical, trackRef, active, reducedMotion]);
 };
 
 export const LogoLoop = memo(({
@@ -160,11 +159,14 @@ export const LogoLoop = memo(({
   const containerRef = useRef(null);
   const trackRef = useRef(null);
   const seqRef = useRef(null);
+  const active = useElementActivity(containerRef);
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
 
   const [seqWidth, setSeqWidth] = useState(0);
   const [seqHeight, setSeqHeight] = useState(0);
   const [copyCount, setCopyCount] = useState(ANIMATION_CONFIG.MIN_COPIES);
   const [isHovered, setIsHovered] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
 
   const effectiveHoverSpeed = useMemo(() => {
     if (hoverSpeed !== undefined) return hoverSpeed;
@@ -225,9 +227,11 @@ export const LogoLoop = memo(({
     targetVelocity,
     seqWidth,
     seqHeight,
-    isHovered,
-    effectiveHoverSpeed,
-    isVertical
+    isHovered || isFocused,
+    isFocused ? 0 : effectiveHoverSpeed,
+    isVertical,
+    active,
+    reducedMotion
   );
 
   const cssVariables = useMemo(() => ({
@@ -342,16 +346,17 @@ export const LogoLoop = memo(({
   }, [isVertical, scaleOnHover, renderItem]);
 
   const logoLists = useMemo(() =>
-    Array.from({ length: copyCount }, (_, copyIndex) => (
+    Array.from({ length: reducedMotion ? 1 : copyCount }, (_, copyIndex) => (
       <ul
-        className={cx('flex items-center', isVertical && 'flex-col')}
+        className={cx('flex items-center', isVertical && 'flex-col', reducedMotion && 'flex-wrap justify-center gap-y-4')}
         key={`copy-${copyIndex}`}
         role="list"
         aria-hidden={copyIndex > 0}
+        inert={copyIndex > 0}
         ref={copyIndex === 0 ? seqRef : undefined}>
         {logos.map((item, itemIndex) => renderLogoItem(item, `${copyIndex}-${itemIndex}`))}
       </ul>
-    )), [copyCount, logos, renderLogoItem, isVertical]);
+    )), [copyCount, logos, renderLogoItem, isVertical, reducedMotion]);
 
   const containerStyle = useMemo(() => ({
     width: isVertical
@@ -371,8 +376,10 @@ export const LogoLoop = memo(({
       role="region"
       aria-label={ariaLabel}
       onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}>
-      {fadeOut && (
+      onMouseLeave={handleMouseLeave}
+      onFocusCapture={() => setIsFocused(true)}
+      onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setIsFocused(false); }}>
+      {fadeOut && !reducedMotion && (
         <>
           {isVertical ? (
             <>
@@ -414,9 +421,10 @@ export const LogoLoop = memo(({
 
       <div
         className={cx(
-          'flex will-change-transform select-none relative z-0',
+          'flex select-none relative z-0',
+          active && !reducedMotion && 'will-change-transform',
           'motion-reduce:transform-none',
-          isVertical ? 'flex-col h-max w-full' : 'flex-row w-max'
+          isVertical ? 'flex-col h-max w-full' : reducedMotion ? 'flex-row w-full' : 'flex-row w-max'
         )}
         ref={trackRef}
         onMouseEnter={handleMouseEnter}
